@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"io"
 	"log"
 	"net/http"
 )
@@ -51,6 +52,7 @@ func StartServer() {
 	r.HandleFunc("/user", UserPostHandler).Methods("POST")
 	r.HandleFunc("/user", UserGetHandler).Methods("GET")
 	r.HandleFunc("/user/{id}", UserFindHandler).Methods("GET")
+	r.HandleFunc("/user/{id}", UserDeleteHandler).Methods("DELETE")
 	r.HandleFunc("/book", BookPostHandler).Methods("POST")
 	r.HandleFunc("/book", BookGetHandler).Methods("GET")
 	r.HandleFunc("/book/{id}", BookFindHandler).Methods("GET")
@@ -60,9 +62,11 @@ func StartServer() {
 	r.HandleFunc("/vechicle", VechiclePostHandler).Methods("POST")
 	r.HandleFunc("/vechicle", VechicleGetHandler).Methods("GET")
 	r.HandleFunc("/vechicle/{id}", VechicleFindHandler).Methods("GET")
+	r.HandleFunc("/vechicle/{id}", VechiclePutHandler).Methods("PUT")
 	r.HandleFunc("/task", TaskPostHandler).Methods("POST")
 	r.HandleFunc("/task", TaskGetHandler).Methods("GET")
 	r.HandleFunc("/task/{id}", TaskFindHandler).Methods("GET")
+	r.HandleFunc("/task/{id}", TaskDeleteHandler).Methods("DELETE")
 
 	err := http.ListenAndServe(":3030", r)
 	if err != nil {
@@ -125,16 +129,37 @@ func UserFindHandler(w http.ResponseWriter, r *http.Request) {
 
 	if id == "" {
 		http.Error(w, "Поле ID должно быть заполнено!", http.StatusBadRequest)
+		return
 	}
 
 	res := db.First(&users, "id = ?", id)
 	if res.Error != nil {
 		http.Error(w, "Данные либо не найдены, либо ошибка сервера!", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(users)
+}
+
+func UserDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	var users User
+
+	err := db.First(&users, id)
+	if err.Error != nil {
+		http.Error(w, "Данные не найдены!", http.StatusNotFound)
+		return
+	}
+
+	err = db.Where("id = ?", id).Delete(&users)
+	if err.Error != nil {
+		http.Error(w, "Ошибка при удалении!", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode("Данные удалены!")
 }
 
 func BookPostHandler(w http.ResponseWriter, r *http.Request) {
@@ -177,11 +202,13 @@ func BookFindHandler(w http.ResponseWriter, r *http.Request) {
 
 	if id == "" {
 		http.Error(w, "Поле ID должно быть заполнено!", http.StatusBadRequest)
+		return
 	}
 
 	res := db.First(&books, "id = ?", id)
 	if res.Error != nil {
 		http.Error(w, "Данные либо не найдены, либо ошибка сервера!", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -229,11 +256,13 @@ func DeliveryFindHandler(w http.ResponseWriter, r *http.Request) {
 
 	if id == "" {
 		http.Error(w, "Поле ID должно быть заполнено!", http.StatusBadRequest)
+		return
 	}
 
 	res := db.First(&deliver, "id = ?", id)
 	if res.Error != nil {
 		http.Error(w, "Данные либо не найдены, либо ошибка сервера!", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -281,16 +310,50 @@ func VechicleFindHandler(w http.ResponseWriter, r *http.Request) {
 
 	if id == "" {
 		http.Error(w, "Поле ID должно быть заполнено!", http.StatusBadRequest)
+		return
 	}
 
 	res := db.First(&vech, "id = ?", id)
 	if res.Error != nil {
 		http.Error(w, "Данные либо не найдены, либо ошибка сервера!", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(vech)
+}
+
+func VechiclePutHandler(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	var vech Vechicle
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	search := db.First(&vech, id)
+	if search.Error != nil {
+		http.Error(w, "Данные не найдены!", http.StatusNotFound)
+		return
+	}
+
+	res := json.Unmarshal(body, &vech)
+	if res != nil {
+		http.Error(w, "Ошибка при декодировании JSON!", http.StatusBadRequest)
+		return
+	}
+
+	upd := db.Where("id = ?", id).Save(&vech)
+	if upd.Error != nil {
+		http.Error(w, "Ошибка при обновлении!", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode("Данные обновлены!")
 }
 
 func TaskPostHandler(w http.ResponseWriter, r *http.Request) {
@@ -333,14 +396,35 @@ func TaskFindHandler(w http.ResponseWriter, r *http.Request) {
 
 	if id == "" {
 		http.Error(w, "Поле ID должно быть заполнено!", http.StatusBadRequest)
+		return
 	}
 
 	res := db.First(&tasks, "id = ?", id)
 	if res.Error != nil {
 		http.Error(w, "Данные либо не найдены, либо ошибка сервера!", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(tasks)
+}
+
+func TaskDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	var tasks Task
+
+	err := db.First(&tasks, id)
+	if err.Error != nil {
+		http.Error(w, "Данные не найдены!", http.StatusNotFound)
+		return
+	}
+
+	err = db.Where("id = ?", id).Delete(&tasks)
+	if err.Error != nil {
+		http.Error(w, "Ошибка при удалении!", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode("Данные удалены!")
 }
