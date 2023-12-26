@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
 	"net/http"
@@ -37,6 +38,7 @@ type Vechicle struct {
 }
 
 type Task struct {
+	gorm.Model
 	Description string `json:"description"`
 	Completed   bool   `json:"completed"`
 }
@@ -62,7 +64,7 @@ func StartServer() {
 	r.HandleFunc("/task", TaskGetHandler).Methods("GET")
 	r.HandleFunc("/task/{id}", TaskFindHandler).Methods("GET")
 
-	err := http.ListenAndServe(":8080", nil)
+	err := http.ListenAndServe(":3030", r)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -70,6 +72,15 @@ func StartServer() {
 }
 
 func main() {
+	var err error
+
+	dsn := "user=postgres password=Lax212212 dbname=test_api sslmode=disable"
+	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	db.AutoMigrate(&User{}, &Book{}, &Delivery{}, &Vechicle{}, Task{})
+
 	fmt.Println("Запуск сервера...")
 	StartServer()
 }
